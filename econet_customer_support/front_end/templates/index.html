@@ -1,0 +1,56 @@
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Support Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Customer Support Assistant</h1>
+        <div id="chat-container">
+            <div id="chat-messages"></div>
+            <div id="input-container">
+                <input type="text" id="user-input" placeholder="Ask a question...">
+                <button onclick="askQuestion()">Send</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function askQuestion() {
+            const input = document.getElementById('user-input');
+            const question = input.value.trim();
+            if (question) {
+                addMessage('user', question);
+                fetch('/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({question: question}),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    addMessage('assistant', data.answer);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    addMessage('assistant', 'Sorry, there was an error processing your request.');
+                });
+                input.value = '';
+            }
+        }
+
+        function addMessage(sender, message) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${sender}`;
+            messageElement.textContent = message;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
