@@ -14,4 +14,7 @@ pandas
 tqdm
 python-dotenv
 groq
+fastapi
+uvicorn
+pydantic
 
