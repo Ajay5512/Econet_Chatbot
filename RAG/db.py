@@ -6,6 +6,12 @@ from psycopg2.extras import DictCursor
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import json
+import logging
+
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 RUN_TIMEZONE_CHECK = os.getenv('RUN_TIMEZONE_CHECK', '1') == '1'
 
@@ -13,12 +19,16 @@ TZ_INFO = os.getenv("TZ", "Europe/Berlin")
 tz = ZoneInfo(TZ_INFO)
 
 def get_db_connection():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST_LOCAL"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD"),
-    )
+    try:
+        return psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST_LOCAL"),
+            database=os.getenv("POSTGRES_DB"),
+            user=os.getenv("POSTGRES_USER"),
+            password=os.getenv("POSTGRES_PASSWORD"),
+        )
+    except psycopg2.OperationalError as e:
+        logging.error(f"Unable to connect to the database: {e}")
+        return None
 
 def init_db():
     conn = get_db_connection()
@@ -205,21 +215,24 @@ def get_token_usage_stats():
 
 def check_timezone():
     conn = get_db_connection()
+    if conn is None:
+        logging.error("Skipping timezone check due to database connection failure.")
+        return
     try:
         with conn.cursor() as cur:
             cur.execute("SHOW timezone;")
             db_timezone = cur.fetchone()[0]
-            print(f"Database timezone: {db_timezone}")
+            logging.info(f"Database timezone: {db_timezone}")
 
             cur.execute("SELECT current_timestamp;")
             db_time_utc = cur.fetchone()[0]
-            print(f"Database current time (UTC): {db_time_utc}")
+            logging.info(f"Database current time (UTC): {db_time_utc}")
 
             db_time_local = db_time_utc.astimezone(tz)
-            print(f"Database current time ({TZ_INFO}): {db_time_local}")
+            logging.info(f"Database current time ({TZ_INFO}): {db_time_local}")
 
             py_time = datetime.now(tz)
-            print(f"Python current time: {py_time}")
+            logging.info(f"Python current time: {py_time}")
 
             # Use py_time instead of tz for insertion
             cur.execute("""
@@ -234,23 +247,24 @@ def check_timezone():
              'test explanation', 0, 0, 0, 0, 0, 0, 0.0, py_time))
 
             inserted_time = cur.fetchone()[0]
-            print(f"Inserted time (UTC): {inserted_time}")
-            print(f"Inserted time ({TZ_INFO}): {inserted_time.astimezone(tz)}")
+            logging.info(f"Inserted time (UTC): {inserted_time}")
+            logging.info(f"Inserted time ({TZ_INFO}): {inserted_time.astimezone(tz)}")
 
             cur.execute("SELECT timestamp FROM conversations WHERE id = 'test';")
             selected_time = cur.fetchone()[0]
-            print(f"Selected time (UTC): {selected_time}")
-            print(f"Selected time ({TZ_INFO}): {selected_time.astimezone(tz)}")
+            logging.info(f"Selected time (UTC): {selected_time}")
+            logging.info(f"Selected time ({TZ_INFO}): {selected_time.astimezone(tz)}")
 
             # Clean up the test entry
             cur.execute("DELETE FROM conversations WHERE id = 'test';")
             conn.commit()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logging.error(f"An error occurred during timezone check: {e}")
         conn.rollback()
     finally:
         conn.close()
 
-
 if RUN_TIMEZONE_CHECK:
     check_timezone()
+else:
+    logging.info("Timezone check is disabled.")
