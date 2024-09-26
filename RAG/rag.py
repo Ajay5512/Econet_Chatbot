@@ -56,7 +56,7 @@ def build_prompt(query, search_results):
     
     return prompt_template.format(question=query, context=context).strip()
 
-def llm(prompt, model='llama-3.2-90b-text-p'):
+def llm(prompt, model='llama-3.1-70b-versatile'):
     client = Groq()
     start_time = time.time()
     response = client.chat.completions.create(
